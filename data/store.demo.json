@@ -1,0 +1,180 @@
+{
+  "contracts": [
+    {
+      "id": "contract-demo-01",
+      "contractNumber": "SLA-2026-DEMO-01",
+      "customerName": "Apex Demo Financial Corp",
+      "effectiveDate": "2026-01-01",
+      "expirationDate": "2026-12-31",
+      "tier": "Enterprise Tier 1",
+      "monthlyFee": 10000,
+      "currency": "USD",
+      "commitments": [
+        {
+          "metric": "Monthly Uptime",
+          "target": 99.95,
+          "unit": "%",
+          "measurementPeriod": "Monthly",
+          "curePeriodHours": 24,
+          "penaltyTiers": [
+            {
+              "breachThreshold": 99.95,
+              "penaltyType": "credit_percentage",
+              "penaltyValue": 10,
+              "description": "10% SLA remedy"
+            },
+            {
+              "breachThreshold": 99.5,
+              "penaltyType": "credit_percentage",
+              "penaltyValue": 25,
+              "description": "25% SLA remedy"
+            }
+          ]
+        }
+      ],
+      "status": "ACTIVE"
+    }
+  ],
+  "incidents": [
+    {
+      "id": "inc-demo-001",
+      "incidentNumber": "INC-DEMO-2026-01",
+      "service": "Core Banking API Gateway",
+      "severity": "P1 - Critical",
+      "status": "resolved",
+      "summary": "Demonstration API gateway latency event",
+      "rootCause": "Simulated connection pool saturation in demo environment",
+      "startedAt": "2026-10-15T14:00:00.000Z",
+      "detectedAt": "2026-10-15T14:02:00.000Z",
+      "mitigatedAt": "2026-10-15T14:45:00.000Z",
+      "downtimeMinutes": 45,
+      "affectedRegions": [
+        "US-East (N. Virginia)"
+      ],
+      "affectedCustomers": [
+        "cust-demo-101"
+      ],
+      "financialExposure": 1000,
+      "slaBreached": true,
+      "telemetry": []
+    }
+  ],
+  "customers": [
+    {
+      "id": "cust-demo-101",
+      "name": "Apex Demo Financial Corp",
+      "domain": "demo-apexfinancial.example.com",
+      "plan": "Enterprise Tier 1",
+      "monthlySpend": 10000,
+      "billingEmail": "billing@demo-apexfinancial.example.com",
+      "paypalEmail": "disbursements@demo-apexfinancial.example.com",
+      "paypalCaptureId": "DEMO-CAPTURE-101-ABC",
+      "refundableBalance": 10000,
+      "slaContractId": "contract-demo-01",
+      "contractNumber": "SLA-2026-DEMO-01",
+      "region": "US-East (N. Virginia)",
+      "paymentMethod": "PayPal Refund"
+    },
+    {
+      "id": "cust-demo-102",
+      "name": "Nexus Demo Logistics Inc",
+      "domain": "demo-nexuslogistics.example.com",
+      "plan": "Enterprise Tier 2",
+      "monthlySpend": 8000,
+      "billingEmail": "ap@demo-nexuslogistics.example.com",
+      "paypalEmail": "refunds@demo-nexuslogistics.example.com",
+      "paypalCaptureId": "DEMO-CAPTURE-102-DEF",
+      "refundableBalance": 8000,
+      "slaContractId": "contract-demo-02",
+      "contractNumber": "SLA-2026-DEMO-02",
+      "region": "US-West (Oregon)",
+      "paymentMethod": "PayPal Refund"
+    }
+  ],
+  "entitlements": [
+    {
+      "id": "ent-demo-001",
+      "incidentId": "inc-demo-001",
+      "incidentNumber": "INC-DEMO-2026-01",
+      "customerId": "cust-demo-101",
+      "customerName": "Apex Demo Financial Corp",
+      "contractId": "contract-demo-01",
+      "contractNumber": "SLA-2026-DEMO-01",
+      "contractTier": "Enterprise Tier 1",
+      "serviceName": "Core Banking API Gateway",
+      "outageMinutes": 45,
+      "measuredAvailability": 99.895,
+      "slaTarget": 99.95,
+      "breachMargin": 0.055,
+      "remedyType": "credit_percentage",
+      "penaltyRate": 10,
+      "monthlyBaseFee": 10000,
+      "calculatedRemedyAmount": 1000,
+      "currency": "USD",
+      "payoutMethod": "PayPal Refund",
+      "status": "approved",
+      "confidenceScore": 0.98,
+      "evidenceSummary": "Demonstration incident verified for 45 minutes of outage.",
+      "createdAt": "2026-10-16T10:00:00.000Z",
+      "firstApprovedAt": "2026-10-16T11:00:00.000Z",
+      "firstApprovedBy": "Demo Financial Controller"
+    }
+  ],
+  "refunds": [],
+  "serviceCredits": [],
+  "genuineCaptures": [
+    {
+      "id": "cap-demo-001",
+      "paypalOrderId": "DEMO-ORDER-SANDBOX-001",
+      "paypalCaptureId": "DEMO-CAPTURE-101-ABC",
+      "customerId": "cust-demo-101",
+      "customerName": "Apex Demo Financial Corp",
+      "amount": 10000,
+      "currency": "USD",
+      "status": "COMPLETED",
+      "timestamp": "2026-10-01T12:00:00.000Z"
+    }
+  ],
+  "processedWebhookEventIds": [
+    "DEMO-WH-EVENT-001"
+  ],
+  "auditEvents": [
+    {
+      "id": "audit-demo-2",
+      "timestamp": "2026-11-05T18:13:23.571Z",
+      "category": "SYSTEM",
+      "actor": {
+        "type": "SYSTEM_AI",
+        "name": "Demo Environment Initializer"
+      },
+      "action": "DEPOSIT_RECORDED",
+      "entityType": "Customer",
+      "entityId": "cust-demo-101",
+      "description": "Demo capture DEMO-CAPTURE-101-ABC recorded for customer Apex Demo Financial Corp",
+      "metadata": {
+        "environment": "demonstration"
+      },
+      "previousHash": "26785efc4820bb51d1533e5b96c95519d8677618e0ce286e5972c243b5c14c6d",
+      "currentHash": "aa461087400b374e6325458eca1930341de2e2f6f06c6be70df15c157b153031"
+    },
+    {
+      "id": "audit-demo-1",
+      "timestamp": "2026-11-05T18:13:23.559Z",
+      "category": "SYSTEM",
+      "actor": {
+        "type": "SYSTEM_AI",
+        "name": "Demo Environment Initializer"
+      },
+      "action": "GENESIS_INITIALIZATION",
+      "entityType": "Ledger",
+      "entityId": "demo-ledger",
+      "description": "Demonstration financial store initialized with sanitized fixtures",
+      "metadata": {
+        "environment": "demonstration"
+      },
+      "previousHash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "currentHash": "26785efc4820bb51d1533e5b96c95519d8677618e0ce286e5972c243b5c14c6d"
+    }
+  ],
+  "lastAuditHash": "aa461087400b374e6325458eca1930341de2e2f6f06c6be70df15c157b153031"
+}

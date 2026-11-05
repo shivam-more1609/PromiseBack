@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #F6F8FC;
+    --surface: #FFFFFF;
+    --primary: #5146E5;
+    --primary-light: #EEEDFF;
+    --success: #139B76;
+    --success-bg: #E8F7F1;
+    --warning: #D99124;
+    --warning-bg: #FFF5E5;
+    --danger: #DC5555;
+    --danger-bg: #FDECEC;
+    --text-primary: #172033;
+    --text-secondary: #667085;
+    --border: #E8ECF2;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Custom Scrollbar for sleek enterprise tables */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F1F4F9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Financial data styling */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
