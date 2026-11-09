@@ -64,17 +64,15 @@ export default function ContractUploadModal({
 
         response = await fetch('/api/contracts', {
           method: 'POST',
-          headers: {
-            'x-promiseback-client': 'promiseback-web-console'
-          },
+          credentials: 'include',
           body: formData
         });
       } else {
         response = await fetch('/api/contracts', {
           method: 'POST',
+          credentials: 'include',
           headers: {
-            'Content-Type': 'application/json',
-            'x-promiseback-client': 'promiseback-web-console'
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             customerName,

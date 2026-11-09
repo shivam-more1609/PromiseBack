@@ -12,7 +12,8 @@ const testSuites = [
   'tests/webhook-reconciliation.test.ts',
   'tests/redirect-persistence.test.ts',
   'tests/ledger-reconciliation.test.ts',
-  'tests/dual-approval-governance.test.ts'
+  'tests/dual-approval-governance.test.ts',
+  'tests/ai-intelligence-layer.test.ts'
 ];
 
 console.log(`=== RUNNING ALL ${testSuites.length} TEST SUITES ===\n`);

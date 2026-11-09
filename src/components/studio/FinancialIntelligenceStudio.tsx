@@ -86,11 +86,21 @@ export default function FinancialIntelligenceStudio() {
   const [agentQuery, setAgentQuery] = useState('');
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentResponse, setAgentResponse] = useState<any>(null);
-  const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'agent'; text: string; data?: any; guardrail?: string }>>([
+  const [chatHistory, setChatHistory] = useState<Array<{
+    role: 'user' | 'agent';
+    text: string;
+    detailedAnalysis?: string;
+    data?: any;
+    guardrail?: string;
+    sourceReferences?: Array<{ type: string; identifier: string; description: string }>;
+    isLive?: boolean;
+    modelName?: string;
+  }>>([
     {
       role: 'agent',
       text: 'Welcome to PromiseBack Financial Intelligence Studio. I coordinate with our Data and Widget Agents to analyze SLA breach exposure and refund liabilities.',
-      guardrail: 'AI cannot execute or disburse PayPal refunds directly. Authorization requires human dual-approval.'
+      detailedAnalysis: 'Ask me about high-exposure enterprise accounts, claim deadlines, conflicting downtime logs, or specific recovery cases. All financial disbursements strictly require human dual-approval.',
+      guardrail: 'AI cannot execute or disburse PayPal refunds directly. Authorization requires human dual-approval in the Compensation Review workbench.'
     }
   ]);
 
@@ -250,8 +260,12 @@ export default function FinancialIntelligenceStudio() {
           {
             role: 'agent',
             text: result.summary,
+            detailedAnalysis: result.detailedAnalysis !== result.summary ? result.detailedAnalysis : undefined,
             data: result.data,
-            guardrail: result.guardrailNotice
+            guardrail: result.guardrailNotice,
+            sourceReferences: result.sourceReferences,
+            isLive: result.isLiveAiConfigured,
+            modelName: result.modelName
           }
         ]);
 
@@ -628,17 +642,52 @@ export default function FinancialIntelligenceStudio() {
                         : 'bg-[#F8FAFC] border border-neutral-border text-neutral-primary rounded-bl-none shadow-xs'
                     }`}
                   >
-                    <div className="flex items-center gap-1.5 font-bold mb-1 text-[11px]">
-                      {msg.role === 'user' ? (
-                        <span>Finance Operator</span>
-                      ) : (
-                        <>
-                          <Bot className="w-3.5 h-3.5 text-primary" />
-                          <span>Studio Agent</span>
-                        </>
+                    <div className="flex items-center justify-between font-bold mb-1 text-[11px]">
+                      <div className="flex items-center gap-1.5">
+                        {msg.role === 'user' ? (
+                          <span>Finance Operator</span>
+                        ) : (
+                          <>
+                            <Bot className="w-3.5 h-3.5 text-primary" />
+                            <span>Studio Financial Intelligence Agent</span>
+                          </>
+                        )}
+                      </div>
+                      {msg.role === 'agent' && msg.modelName && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${msg.isLive ? 'bg-primary-light text-primary' : 'bg-slate-200 text-slate-700'}`}>
+                          {msg.isLive ? `AI: ${msg.modelName}` : 'Deterministic Engine'}
+                        </span>
                       )}
                     </div>
-                    <p className="leading-relaxed">{msg.text}</p>
+                    <p className="leading-relaxed font-medium">{msg.text}</p>
+
+                    {/* Detailed Analytical Breakdown */}
+                    {msg.detailedAnalysis && (
+                      <div className="mt-2 pt-2 border-t border-slate-200 text-neutral-secondary leading-relaxed space-y-1">
+                        <p>{msg.detailedAnalysis}</p>
+                      </div>
+                    )}
+
+                    {/* Grounded Source References */}
+                    {msg.sourceReferences && msg.sourceReferences.length > 0 && (
+                      <div className="mt-2.5 pt-2 border-t border-slate-200 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-secondary block">
+                          Verified Audit Source References:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {msg.sourceReferences.map((ref, rIdx) => (
+                            <span
+                              key={rIdx}
+                              className="inline-flex items-center gap-1 bg-white border border-neutral-border px-2 py-0.5 rounded text-[10px] font-mono text-neutral-primary shadow-xs"
+                              title={ref.description}
+                            >
+                              <span className="text-primary font-bold">[{ref.type.toUpperCase()}]</span>
+                              <span>{ref.identifier}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Agent Data Highlights */}
                     {msg.data?.rankedCustomers && (
@@ -686,10 +735,22 @@ export default function FinancialIntelligenceStudio() {
                 👉 "Show customers with highest compensation exposure"
               </button>
               <button
-                onClick={() => handleRunAgentQuery('Which microservice caused the most contractual downtime minutes?')}
+                onClick={() => handleRunAgentQuery('Which recovery opportunities are approaching their claim deadlines?')}
                 className="w-full text-left text-[11px] p-2 bg-[#F6F8FC] hover:bg-primary-light hover:text-primary rounded-lg border border-neutral-border transition-colors truncate block"
               >
-                👉 "Which microservice caused the most downtime?"
+                👉 "Which recoveries are approaching claim deadlines?"
+              </button>
+              <button
+                onClick={() => handleRunAgentQuery('Which incidents have conflicting downtime records?')}
+                className="w-full text-left text-[11px] p-2 bg-[#F6F8FC] hover:bg-primary-light hover:text-primary rounded-lg border border-neutral-border transition-colors truncate block"
+              >
+                👉 "Which incidents have conflicting downtime records?"
+              </button>
+              <button
+                onClick={() => handleRunAgentQuery('What is our total outstanding recoverable amount?')}
+                className="w-full text-left text-[11px] p-2 bg-[#F6F8FC] hover:bg-primary-light hover:text-primary rounded-lg border border-neutral-border transition-colors truncate block"
+              >
+                👉 "What is our total outstanding recoverable amount?"
               </button>
             </div>
 

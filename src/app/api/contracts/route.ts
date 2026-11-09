@@ -74,7 +74,8 @@ export async function POST(request: Request) {
         extractedConfidence: extracted.extractedConfidence,
         clauses: extracted.clauses,
         fileName,
-        fileSize
+        fileSize,
+        rawTextPreview: extracted.rawTextPreview
       };
     } else {
       // JSON body fallback
@@ -138,7 +139,8 @@ export async function POST(request: Request) {
       uploadedAt: new Date().toISOString(),
       fileName: contractData.fileName || fileName,
       fileSize: contractData.fileSize || fileSize,
-      clauses: contractData.clauses || []
+      clauses: contractData.clauses || [],
+      rawTextPreview: contractData.rawTextPreview
     };
 
     const created = store.addContract(newContract);

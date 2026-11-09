@@ -71,9 +71,9 @@ export default function RefundsPage() {
     try {
       const response = await fetch('/api/refunds', {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
-          'x-promiseback-client': 'promiseback-web-console'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           action: 'execute_paypal',
@@ -106,9 +106,9 @@ export default function RefundsPage() {
     try {
       const response = await fetch('/api/refunds', {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
-          'x-promiseback-client': 'promiseback-web-console'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           action: 'apply_credit',

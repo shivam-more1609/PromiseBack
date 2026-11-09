@@ -31,9 +31,9 @@ export default function IngestIncidentModal({
     try {
       const response = await fetch('/api/incidents', {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
-          'x-promiseback-client': 'promiseback-web-console'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           service,

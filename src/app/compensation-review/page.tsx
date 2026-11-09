@@ -70,9 +70,9 @@ function CompensationReviewContent() {
     if (selectedCase) {
       fetch('/api/ai/analyze', {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
-          'x-promiseback-client': 'promiseback-web-console'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ type: 'entitlement', entityId: selectedCase.id })
       })
@@ -99,9 +99,9 @@ function CompensationReviewContent() {
 
       const response = await fetch('/api/approvals', {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
-          'x-promiseback-client': 'promiseback-web-console'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           entitlementId: selectedCase.id,
@@ -179,6 +179,14 @@ function CompensationReviewContent() {
             >
               {selectedCase.status.replace('_', ' ').toUpperCase()}
             </Badge>
+            {aiAnalysis?.completenessScore !== undefined && (
+              <Badge
+                variant={aiAnalysis.completenessScore >= 80 ? 'success' : aiAnalysis.completenessScore >= 60 ? 'warning' : 'danger'}
+                size="sm"
+              >
+                Evidence Score: {aiAnalysis.completenessScore}%
+              </Badge>
+            )}
           </div>
           <p className="text-xs text-neutral-secondary mt-1">
             Dual-approval investigation workbench: Contractual covenants vs Telemetry evidence.
