@@ -40,10 +40,10 @@ export default function ContractsPage() {
       if (data.success) {
         setContracts(data.contracts);
         // Refresh selected contract if already open
-        if (selectedContract) {
-          const updated = data.contracts.find((c: Contract) => c.id === selectedContract.id);
-          if (updated) setSelectedContract(updated);
-        }
+        setSelectedContract(prev => {
+          if (!prev) return null;
+          return data.contracts.find((c: Contract) => c.id === prev.id) || prev;
+        });
       }
     } catch (err) {
       console.error('Failed to fetch contracts:', err);
@@ -193,6 +193,15 @@ export default function ContractsPage() {
                     >
                       {contract.status === 'active' ? 'Active SLA' : 'Requires Legal Review'}
                     </Badge>
+                    {contract.isDemo ? (
+                      <Badge variant="neutral" size="sm">
+                        Demo Seed
+                      </Badge>
+                    ) : (
+                      <Badge variant="indigo" size="sm">
+                        Uploaded PDF
+                      </Badge>
+                    )}
                   </div>
 
                   <p className="text-xs text-neutral-secondary mt-1">
@@ -202,8 +211,24 @@ export default function ContractsPage() {
                   <div className="flex items-center gap-4 text-xs text-neutral-secondary mt-2 flex-wrap">
                     <span>Target: <strong className="text-neutral-primary font-mono">{contract.uptimeTarget}%</strong></span>
                     <span>Window: <strong className="text-neutral-primary">{contract.measurementPeriod}</strong></span>
-                    <span>Remedy Cap: <strong className="text-neutral-primary font-mono">{contract.maxCompensationPercent}%</strong></span>
-                    <span>Clauses: <strong className="text-neutral-primary font-mono">{contract.clauses.length} extracted</strong></span>
+                    <span>Explicit Percentage Cap: <strong className="text-neutral-primary font-mono">
+                      {contract.explicitPercentageCap !== null && contract.explicitPercentageCap !== undefined
+                        ? `${contract.explicitPercentageCap}%`
+                        : (typeof contract.maxCompensationPercent === 'number'
+                            ? `${contract.maxCompensationPercent}%`
+                            : 'Not Specified')}
+                    </strong></span>
+                    <span>Monetary Ceiling: <strong className="text-neutral-primary font-mono">
+                      {contract.contractualMonetaryCeiling
+                        ? `USD ${contract.contractualMonetaryCeiling.toLocaleString()}`
+                        : (contract.monthlyServiceFee ? `USD ${contract.monthlyServiceFee.toLocaleString()}` : 'Not Specified')}
+                    </strong></span>
+                    <span>Maximum Listed Credit Tier: <strong className="text-primary font-mono">
+                      {contract.maxServiceCreditTier ? `${contract.maxServiceCreditTier}%` : '20%'}
+                    </strong></span>
+                    <span>Clauses: <strong className="text-neutral-primary font-mono">
+                      {contract.clauses.filter(c => c.status === 'human_verified').length}/{contract.clauses.length} Verified
+                    </strong></span>
                   </div>
                 </div>
               </div>
@@ -211,7 +236,7 @@ export default function ContractsPage() {
               {/* Right Side Info & Action */}
               <div className="flex items-center gap-4 self-end md:self-auto shrink-0">
                 <div className="text-right hidden sm:block">
-                  <span className="text-[11px] text-neutral-secondary block">AI Accuracy</span>
+                  <span className="text-[11px] text-neutral-secondary block">AI Confidence</span>
                   <span className="font-mono text-xs font-semibold text-primary">
                     {(contract.extractedConfidence * 100).toFixed(0)}% Confidence
                   </span>
@@ -238,7 +263,13 @@ export default function ContractsPage() {
         contract={selectedContract}
         isOpen={!!selectedContract}
         onClose={() => setSelectedContract(null)}
-        onContractUpdated={fetchContracts}
+        onContractUpdated={(updated) => {
+          if (updated) {
+            setSelectedContract(updated);
+            setContracts(prev => prev.map(c => c.id === updated.id ? updated : c));
+          }
+          fetchContracts();
+        }}
       />
     </div>
   );

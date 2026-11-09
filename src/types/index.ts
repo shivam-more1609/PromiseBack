@@ -1,4 +1,4 @@
-export type VerificationStatus = 'ai_extracted' | 'human_verified' | 'requires_review';
+export type VerificationStatus = 'ai_extracted' | 'human_verified' | 'requires_review' | 'unverified';
 
 export interface SLATier {
   uptimeThreshold: number; // e.g. 99.95
@@ -12,12 +12,14 @@ export interface SLAClause {
   id: string;
   section: string;
   title: string;
-  content: string;
+  content: string; // The extracted interpretation or summarized covenant
   confidence: number; // 0 to 1
   status: VerificationStatus;
   verifiedBy?: string;
   verifiedAt?: string;
   notes?: string;
+  exactSourceQuote?: string; // Verbatim source quotation from the document
+  isFabricatedOrUnsupported?: boolean;
   sourceCitation?: {
     pageNumber?: number;
     paragraphNumber?: number;
@@ -36,9 +38,17 @@ export interface Contract {
   claimDeadlineDays: number; // e.g. 30 days after period end
   compensationTiers: SLATier[];
   maintenanceExclusions: string[];
-  maxCompensationPercent: number; // e.g. 50 (%)
-  effectiveStartDate: string;
-  effectiveEndDate: string;
+  maxCompensationPercent?: number | null; // e.g. 50 (%), or null if not specified in source document
+  maxRemedyCapText?: string; // "Not specified in source document" or "50%"
+  explicitPercentageCap?: number | null; // Explicit percentage remedy cap (strictly null if unstated in source document)
+  contractualMonetaryCeiling?: number | null; // Contractual monetary ceiling (e.g. 14500 = 100% of relevant month's fees)
+  contractualMonetaryCeilingText?: string; // Verbatim representation and quote
+  maxServiceCreditTier?: number; // Maximum service credit tier percentage in schedule (e.g. 20%)
+  isCashRefundAllowed?: boolean; // false when contract mandates invoice credit or states credits not redeemable for cash
+  disbursementMethodText?: string; // e.g. "Subsequent invoice credit (non-cash)"
+  nonCashRestrictionClause?: string; // Verbatim clause forbidding cash redemption
+  effectiveStartDate?: string;
+  effectiveEndDate?: string;
   status: 'active' | 'requires_review' | 'expired';
   extractedConfidence: number;
   uploadedAt: string;
@@ -46,6 +56,9 @@ export interface Contract {
   fileSize: string;
   clauses: SLAClause[];
   rawTextPreview?: string;
+  downtimeAllowanceMinutes?: number;
+  monthlyServiceFee?: number;
+  isDemo?: boolean;
 }
 
 export type IncidentSeverity = 'P1 - Critical' | 'P2 - Major' | 'P3 - Minor';
@@ -185,6 +198,8 @@ export interface Entitlement {
   };
   approvalExpiresAt?: string;
   payoutMethod: 'PayPal Refund' | 'Service Credit';
+  payoutMethodReason?: string;
+  isCashRefundProhibitedByContract?: boolean;
   payoutReferenceId?: string;
 }
 

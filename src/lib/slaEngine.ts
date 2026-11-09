@@ -244,8 +244,10 @@ export function calculateEntitlementEngine(params: {
     contract.compensationTiers
   );
 
-  // Apply Single Incident / Single Calculation Cap
-  if (creditPercentage > contract.maxCompensationPercent) {
+  // Apply Single Incident / Single Calculation Cap if specified in contract
+  if (typeof contract.explicitPercentageCap === 'number' && creditPercentage > contract.explicitPercentageCap) {
+    creditPercentage = contract.explicitPercentageCap;
+  } else if (typeof contract.maxCompensationPercent === 'number' && creditPercentage > contract.maxCompensationPercent) {
     creditPercentage = contract.maxCompensationPercent;
   }
 
@@ -254,12 +256,24 @@ export function calculateEntitlementEngine(params: {
   let rawCreditAmount = Number(((baseMonthlyAmount * creditPercentage) / 100).toFixed(2));
 
   // Apply Cumulative Period Cap and Incremental Credit Logic
-  const maxAllowablePeriodCredit = Number(((baseMonthlyAmount * contract.maxCompensationPercent) / 100).toFixed(2));
+  const maxCap = typeof contract.explicitPercentageCap === 'number'
+    ? contract.explicitPercentageCap
+    : (typeof contract.maxCompensationPercent === 'number' ? contract.maxCompensationPercent : 100);
+  const maxAllowablePeriodCredit = Number(((baseMonthlyAmount * maxCap) / 100).toFixed(2));
   const remainingAllowableCredit = Math.max(0, maxAllowablePeriodCredit - cumulativePeriodCreditsAlreadyGranted);
 
   // Incremental credit owed for this incident given cumulative tier entitlement
   const incrementalCredit = Math.max(0, rawCreditAmount - cumulativePeriodCreditsAlreadyGranted);
   rawCreditAmount = Math.min(incrementalCredit, remainingAllowableCredit);
+
+  // Apply Contractual Monetary Ceiling (e.g. 100% of fees paid or payable in relevant month / USD 14,500)
+  if (typeof contract.contractualMonetaryCeiling === 'number' && contract.contractualMonetaryCeiling > 0) {
+    const monetaryCeilingRemaining = Math.max(0, contract.contractualMonetaryCeiling - cumulativePeriodCreditsAlreadyGranted);
+    rawCreditAmount = Math.min(rawCreditAmount, monetaryCeilingRemaining);
+  }
+
+  // Check for unverified clauses: Unsupported or flagged clauses cannot enter automated payouts
+  const hasUnverifiedOrFlaggedClauses = Array.isArray(contract.clauses) && contract.clauses.some(c => c.status === 'unverified' || c.status === 'requires_review');
 
   // Determine Status
   let status: EntitlementStatus;
@@ -271,7 +285,7 @@ export function calculateEntitlementEngine(params: {
     status = 'not_eligible';
   } else if (rawCreditAmount <= 0) {
     status = 'not_eligible';
-  } else if (contract.status === 'requires_review') {
+  } else if (contract.status === 'requires_review' || hasUnverifiedOrFlaggedClauses) {
     status = 'requires_review';
   } else {
     status = 'pending_approval';
@@ -279,6 +293,33 @@ export function calculateEntitlementEngine(params: {
 
   const idempotencyKey = `${customer.id}:${period.periodKey}:${triggeringIncident.id}`;
   const caseNumber = `ENT-${period.periodKey.replace('-', '')}-${Math.abs(hashString(idempotencyKey)) % 9000 + 1000}`;
+
+  // Payout Method Determination & Non-Cash Restriction Enforcement
+  // If the contract explicitly prohibits cash redemption (e.g. Section 10: "Service Credits are not redeemable for cash")
+  // and no verified clause authorizes cash/PayPal refund, enforce 'Service Credit'.
+  const hasNonCashProhibition = contract.isCashRefundAllowed === false ||
+    (Array.isArray(contract.clauses) && contract.clauses.some(c =>
+      c.status !== 'unverified' && /not\s+redeemable\s+for\s+cash/i.test(c.exactSourceQuote || c.content)
+    ));
+
+  const hasExplicitCashAuthorization = Array.isArray(contract.clauses) && contract.clauses.some(c =>
+    c.status === 'human_verified' &&
+    /(?:authoriz(?:ed|es|ing)\s+(?:automated\s+)?(?:paypal|cash)\s+refund|election\s+to\s+receive[^\n.]*?via\s+automated\s+paypal\s+refund)/i.test(c.exactSourceQuote || c.content)
+  );
+
+  let determinedPayoutMethod: 'PayPal Refund' | 'Service Credit';
+  let payoutMethodReason: string;
+
+  if (hasNonCashProhibition && !hasExplicitCashAuthorization) {
+    determinedPayoutMethod = 'Service Credit';
+    payoutMethodReason = 'Contractual restriction (Section 10): Service credits are not redeemable for cash and will be applied to a subsequent invoice. PayPal cash refund prohibited.';
+  } else if (customer.paymentMethod === 'Direct Invoicing Credit') {
+    determinedPayoutMethod = 'Service Credit';
+    payoutMethodReason = 'Customer billing election is Direct Invoicing Credit.';
+  } else {
+    determinedPayoutMethod = 'PayPal Refund';
+    payoutMethodReason = 'Disbursement routed to PayPal Sandbox capture refund.';
+  }
 
   return {
     id: `ent-${hashString(idempotencyKey)}`,
@@ -297,7 +338,9 @@ export function calculateEntitlementEngine(params: {
     billingPeriodKey: period.periodKey,
     idempotencyKey,
     isClaimDeadlineExpired: claimExpired,
-    payoutMethod: customer.paymentMethod === 'Direct Invoicing Credit' ? 'Service Credit' : 'PayPal Refund',
+    payoutMethod: determinedPayoutMethod,
+    payoutMethodReason,
+    isCashRefundProhibitedByContract: hasNonCashProhibition && !hasExplicitCashAuthorization,
     evidenceSummary: triggeringIncident.isPlannedMaintenance
       ? `Incident ${triggeringIncident.incidentNumber} is designated as pre-scheduled planned maintenance and is excluded from contractual SLA compensation.`
       : claimExpired

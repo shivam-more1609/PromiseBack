@@ -18,22 +18,37 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   try {
     // 1. Enforce Server Authentication
     const auth = validateMutationAuth(request);
-    if (!auth.authorized) {
-      return NextResponse.json({ success: false, error: auth.reason }, { status: 401 });
+    if (!auth.authorized || !auth.user) {
+      return NextResponse.json({
+        success: false,
+        error: auth.reason || 'UNAUTHORIZED: A valid authenticated session is required to verify or flag clauses.'
+      }, { status: 401 });
     }
 
     const body = await request.json();
-    const { clauseId, status, verifiedBy, notes } = body;
+    const { clauseId, status, notes } = body;
 
     if (!clauseId || !status) {
       return NextResponse.json({ success: false, error: 'clauseId and status are required' }, { status: 400 });
     }
 
+    const validStatuses = ['human_verified', 'requires_review', 'unverified', 'ai_extracted', 'verified'];
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json({
+        success: false,
+        error: `INVALID_STATUS: Status must be one of: ${validStatuses.join(', ')}`
+      }, { status: 400 });
+    }
+
+    // Reviewer identity comes EXCLUSIVELY from the authenticated server-side session.
+    // Client-supplied identities (such as body.verifiedBy) are strictly ignored and cannot override the session.
+    const reviewerName = auth.user;
+
     const updated = store.updateClauseVerification(
       params.id,
       clauseId,
       status,
-      verifiedBy || 'Auditor',
+      reviewerName,
       notes
     );
 

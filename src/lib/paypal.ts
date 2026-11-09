@@ -45,11 +45,20 @@ const PAYPAL_SANDBOX_BASE = 'https://api-m.sandbox.paypal.com';
 let cachedApimaticClient: ApimaticPayPalClient | null = null;
 let cachedOrdersController: ApimaticOrdersController | null = null;
 let cachedPaymentsController: ApimaticPaymentsController | null = null;
+let mockPaymentsController: any = null;
 
 /**
  * In-memory token cache ensuring resilience against rate-limiting and unnecessary OAuth round-trips.
  */
 let cachedOAuthToken: { token: string; expiresAt: number } | null = null;
+
+/**
+ * Injects a mock PaymentsController for automated testing.
+ * Strictly used in test suites to verify refund handling without calling real external APIs.
+ */
+export function setMockPaymentsController(mock: any): void {
+  mockPaymentsController = mock;
+}
 
 /**
  * Resets cached token and APIMatic client instances (useful for test isolation).
@@ -59,12 +68,14 @@ export function resetPayPalTokenCache(): void {
   cachedApimaticClient = null;
   cachedOrdersController = null;
   cachedPaymentsController = null;
+  mockPaymentsController = null;
 }
 
 /**
  * Checks whether PayPal Sandbox credentials are configured in environment variables.
  */
 export function isPayPalSandboxConfigured(): boolean {
+  if (mockPaymentsController) return true;
   const clientId = process.env.PAYPAL_SANDBOX_CLIENT_ID;
   const clientSecret = process.env.PAYPAL_SANDBOX_CLIENT_SECRET;
   return !!(clientId && clientSecret && clientId.trim().length > 5 && clientSecret.trim().length > 5);
@@ -79,6 +90,14 @@ export function getApimaticPayPalClient(): {
   ordersController: ApimaticOrdersController;
   paymentsController: ApimaticPaymentsController;
 } {
+  if (mockPaymentsController) {
+    return {
+      client: cachedApimaticClient as any,
+      ordersController: cachedOrdersController as any,
+      paymentsController: mockPaymentsController
+    };
+  }
+
   const clientId = process.env.PAYPAL_SANDBOX_CLIENT_ID;
   const clientSecret = process.env.PAYPAL_SANDBOX_CLIENT_SECRET;
 

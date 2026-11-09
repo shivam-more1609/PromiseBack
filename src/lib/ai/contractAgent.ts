@@ -34,7 +34,12 @@ export interface ContractAgentResult {
   uptimeTarget: number;
   measurementPeriod: 'Monthly' | 'Quarterly' | 'Annual';
   claimDeadlineDays: number;
-  maxCompensationPercent: number;
+  maxCompensationPercent: number | null;
+  explicitPercentageCap?: number | null;
+  contractualMonetaryCeiling?: number | null;
+  contractualMonetaryCeilingText?: string;
+  maxServiceCreditTier?: number;
+  isCashRefundAllowed?: boolean;
   compensationTiers: SLATier[];
   exclusions: string[];
   ambiguitiesDetected: string[];
@@ -71,11 +76,12 @@ You are a Principal SLA Legal & Financial Compliance Auditor for an enterprise c
 Analyze the SLA contract document text with strict precision.
 
 CRITICAL COMPLIANCE RULES:
-1. NO INVENTED OR HALLUCINATED TERMS: Never extrapolate or assume unstated clauses.
-2. VERBATIM SOURCE PASSAGES: Every extracted commitment MUST include an exact, verbatim quotation from the document.
-3. DETECT AMBIGUITIES: If a clause is subjective (e.g. "commercially reasonable efforts", "at provider's sole discretion", missing notification hours), flag it as ambiguous.
-4. IDENTIFY MISSING PROVISIONS: Flag if uptime target, claim deadline, tier formulas, or exclusions are absent.
-5. FINANCIAL SEPARATION: You interpret legal terms; mathematical calculations are performed deterministically.
+1. STRICT SOURCE GROUNDING: Extract ONLY facts explicitly stated in the document. NEVER invent, extrapolate, or assume unstated clauses, penalty caps, or payout mechanisms.
+2. MISSING VALUES: If a maximum compensation cap, effective date, or disbursement method is not specified in the document text, return null or "Not specified in source document". NEVER assume 50% or any arbitrary percentage.
+3. VERBATIM SOURCE PASSAGES: Every extracted commitment MUST include an exact, verbatim quotation from the document. Do not truncate quotations or omit decimal precision (e.g. preserve 21.6 minutes).
+4. NO FABRICATED SECTIONS: Never generate sections (e.g. Section 4.7 or Section 5.1) that do not appear in the source text.
+5. DETECT AMBIGUITIES: If a clause is subjective (e.g. "commercially reasonable efforts", "at provider's sole discretion", missing notification hours), flag it as ambiguous.
+6. FINANCIAL SEPARATION: You interpret legal terms; mathematical calculations are performed deterministically.
 `;
 
   const prompt = `
@@ -96,7 +102,7 @@ Return a valid JSON object matching this schema:
   "uptimeTarget": number (e.g. 99.95),
   "measurementPeriod": "Monthly" | "Quarterly" | "Annual",
   "claimDeadlineDays": number,
-  "maxCompensationPercent": number,
+  "maxCompensationPercent": number | null,
   "commitments": [
     {
       "type": "uptime_guarantee" | "measurement_period" | "downtime_allowance" | "compensation_clause" | "exclusion" | "claim_deadline" | "service_scope",
@@ -167,6 +173,10 @@ Return a valid JSON object matching this schema:
       ? 'REQUIRES_HUMAN_LEGAL_AUDIT'
       : (rawData.verdict || 'APPROVED_FOR_AUTOMATION');
 
+    const maxComp = typeof rawData.maxCompensationPercent === 'number'
+      ? rawData.maxCompensationPercent
+      : (typeof contract.maxCompensationPercent === 'number' ? contract.maxCompensationPercent : null);
+
     return {
       contractId: contract.id,
       customerName: contract.customerName,
@@ -180,7 +190,7 @@ Return a valid JSON object matching this schema:
       uptimeTarget: Number(rawData.uptimeTarget || contract.uptimeTarget || 99.95),
       measurementPeriod: rawData.measurementPeriod || contract.measurementPeriod || 'Monthly',
       claimDeadlineDays: Number(rawData.claimDeadlineDays || contract.claimDeadlineDays || 30),
-      maxCompensationPercent: Number(rawData.maxCompensationPercent || contract.maxCompensationPercent || 50),
+      maxCompensationPercent: maxComp,
       compensationTiers: rawData.compensationTiers?.length > 0 ? rawData.compensationTiers : contract.compensationTiers,
       exclusions: rawData.exclusions || [
         'Pre-scheduled maintenance notified at least 48 hours in advance',
@@ -190,7 +200,9 @@ Return a valid JSON object matching this schema:
       missingClauses: rawData.missingClauses || [],
       facts: rawData.facts || [
         `Target availability: ${contract.uptimeTarget}% measured on a ${contract.measurementPeriod.toLowerCase()} cadence.`,
-        `Compensation ceiling capped at ${contract.maxCompensationPercent}% of monthly recurring charge.`
+        maxComp !== null
+          ? `Compensation ceiling capped at ${maxComp}% of monthly recurring charge.`
+          : 'Maximum contractual remedy ceiling: Not specified in source document.'
       ],
       calculations: rawData.calculations || [
         `Claim submission deadline window: ${contract.claimDeadlineDays} calendar days following close of affected period.`,
@@ -259,9 +271,9 @@ export function runDeterministicContractAgent(
     });
   }
 
-  // 3. Max Cap
-  let maxCompensationPercent = contract.maxCompensationPercent || 50;
-  const maxCapMatch = normalized.match(/(?:maximum\s+credit|max(?:imum)?\s+compensation|cap(?:ped)?\s+at|shall\s+not\s+exceed)\s*([0-9]{1,2})%/i);
+  // 3. Max Cap (strictly null if not specified in source document)
+  let maxCompensationPercent: number | null = typeof contract.maxCompensationPercent === 'number' ? contract.maxCompensationPercent : null;
+  const maxCapMatch = normalized.match(/(?:maximum\s+credit|max(?:imum)?\s+compensation|credit\s+cap(?:ped)?\s+at|shall\s+not\s+exceed\s+(?:a\s+maximum\s+of\s+)?|(?:service\s+credit\s+)?remedies\s+shall\s+not\s+exceed|maximum\s+credit\s+limit|remedy\s+cap)[^0-9\n]{0,40}?([0-9]{1,2})%/i);
   if (maxCapMatch && maxCapMatch[1]) {
     maxCompensationPercent = parseInt(maxCapMatch[1], 10);
     commitments.push({
@@ -271,6 +283,37 @@ export function runDeterministicContractAgent(
       exactSourceQuote: maxCapMatch[0].trim(),
       sourceLocation: 'Remedy Limitations Section',
       confidence: 0.92,
+      isAmbiguous: false
+    });
+  }
+
+  // 3b. Monetary Ceiling & Non-Cash Restriction (Section 10 Review)
+  const explicitPercentageCap = maxCompensationPercent;
+  const maxServiceCreditTier = (contract.compensationTiers || []).reduce((max, t) => Math.max(max, t.creditPercentage || 0), 0);
+
+  const feeCeilingRegex = /(?:Service\s+Credits?\s+are\s+not\s+redeemable\s+for\s+cash\s+and\s+may\s+not\s+exceed\s+the\s+fees\s+paid\s+or\s+payable\s+for\s+the\s+affected\s+Covered\s+Services\s+in\s+the\s+relevant\s+month\.|[^\n.]*?may\s+not\s+exceed\s+(?:the\s+)?fees\s+paid\s+or\s+payable[^\n.]*\.)/i;
+  const ceilingMatch = normalized.match(feeCeilingRegex);
+
+  const hasNonCash = /not\s+redeemable\s+for\s+cash/i.test(normalized);
+  const hasCashAuth = /(?:authoriz(?:ed|es|ing)\s+(?:automated\s+)?(?:paypal|cash)\s+refund|election\s+to\s+receive[^\n.]*?via\s+automated\s+paypal\s+refund)/i.test(normalized);
+  const isCashRefundAllowed = !hasNonCash || hasCashAuth;
+
+  const contractualMonetaryCeiling = typeof contract.contractualMonetaryCeiling === 'number'
+    ? contract.contractualMonetaryCeiling
+    : (ceilingMatch ? (contract.monthlyServiceFee || 14500) : null);
+
+  const contractualMonetaryCeilingText = contract.contractualMonetaryCeilingText || (ceilingMatch
+    ? `100% of relevant month fees (${contractualMonetaryCeiling ? 'USD ' + contractualMonetaryCeiling.toLocaleString('en-US') : 'fees paid or payable'}) — "${ceilingMatch[0].trim()}"`
+    : 'Not specified in source document');
+
+  if (ceilingMatch) {
+    commitments.push({
+      type: 'compensation_clause',
+      title: 'Contractual Monetary Ceiling (Section 10)',
+      value: contractualMonetaryCeilingText,
+      exactSourceQuote: ceilingMatch[0].trim(),
+      sourceLocation: 'Monthly Service Fee And Credits Section',
+      confidence: 0.96,
       isAmbiguous: false
     });
   }
@@ -296,6 +339,11 @@ export function runDeterministicContractAgent(
     measurementPeriod: contract.measurementPeriod || 'Monthly',
     claimDeadlineDays,
     maxCompensationPercent,
+    explicitPercentageCap,
+    contractualMonetaryCeiling,
+    contractualMonetaryCeilingText,
+    maxServiceCreditTier,
+    isCashRefundAllowed,
     compensationTiers: contract.compensationTiers,
     exclusions: [
       'Pre-scheduled maintenance windows communicated at least 48 hours in advance',
@@ -305,7 +353,10 @@ export function runDeterministicContractAgent(
     missingClauses: missing,
     facts: [
       `Contracted availability baseline: ${uptimeTarget}% (${contract.measurementPeriod}).`,
-      `Maximum remedy ceiling: ${maxCompensationPercent}%.`,
+      `Explicit percentage remedy cap: ${explicitPercentageCap !== null ? explicitPercentageCap + '%' : 'Not specified in source document'}.`,
+      `Contractual monetary ceiling: ${contractualMonetaryCeilingText}.`,
+      `Maximum service credit tier: ${maxServiceCreditTier}% (highest tier in schedule).`,
+      `Disbursement routing: ${isCashRefundAllowed ? 'Cash / electronic PayPal refund permitted.' : 'Subsequent invoice credit only (Section 10: Service credits are not redeemable for cash; PayPal cash refund prohibited).'}`,
       fallbackReason ? `Engine note: Running deterministic extraction (${fallbackReason}).` : 'Engine note: Deterministic syntax parser applied.'
     ],
     calculations: [
@@ -315,7 +366,10 @@ export function runDeterministicContractAgent(
     recommendations: [
       ambiguities.length > 0
         ? 'Flagged subjective provider discretion terms for compliance officer verification.'
-        : 'Contract commitments parsed deterministically and verified for recovery correlation.'
+        : 'Contract commitments parsed deterministically and verified for recovery correlation.',
+      isCashRefundAllowed
+        ? 'Remedy election allows electronic payment reversal or billing credit.'
+        : 'Section 10 mandates service credits apply to subsequent invoices and are not redeemable for cash. PayPal cash refund must NOT be recommended.'
     ],
     quoteValidation: {
       totalChecked: commitments.length,

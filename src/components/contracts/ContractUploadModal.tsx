@@ -88,7 +88,16 @@ export default function ContractUploadModal({
       setUploadProgress(75);
       setStatusMessage('Extracting contractual covenants & SLA penalty tiers...');
 
-      const data = await response.json();
+      let data: any;
+      const resContentType = response.headers.get('content-type') || '';
+      if (resContentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const textResponse = await response.text();
+        throw new Error(
+          `Server returned HTTP ${response.status}: ${response.statusText || 'Non-JSON response'}`
+        );
+      }
 
       if (!data.success) {
         throw new Error(data.error || 'Failed to parse and ingest contract.');

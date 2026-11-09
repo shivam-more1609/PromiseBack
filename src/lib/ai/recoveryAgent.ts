@@ -81,7 +81,11 @@ CRITICAL FINANCIAL & LEGAL RULES:
 2. EXPLAIN THE RECOVERY OPPORTUNITY: Explain why the customer is contractually entitled to this remedy based on availability deficit and applicable tier clauses.
 3. WEIGH EVIDENCE SUFFICIENCY: Completeness score is ${evidenceAudit.completenessScore}/100. If score < 75 or contradictory evidence exists, recommend "REQUEST_ADDITIONAL_EVIDENCE".
 4. DUAL-APPROVAL COMPLIANCE: Claims exceeding $2,500.00 strictly require two-stage human authorization (Finance Controller + Legal Counsel).
+5. NON-CASH RESTRICTION: If the contract prohibits cash redemption (e.g. Section 10: "Service Credits are not redeemable for cash") or payoutMethod is "Service Credit", you MUST NOT recommend a PayPal cash refund. You must recommend a Service Credit applied to a subsequent invoice.
 `;
+
+  const isCashProhibited = contract?.isCashRefundAllowed === false || entitlement.payoutMethod === 'Service Credit';
+  const effectivePayoutChannel: 'PayPal Refund' | 'Service Credit' = isCashProhibited ? 'Service Credit' : entitlement.payoutMethod;
 
   const prompt = `
 Evaluate this recovery case:
@@ -96,7 +100,8 @@ Applicable Tier: "${calc?.applicableTier?.label || 'Tier 1'}"
 Contracted Uptime: ${calc?.contractedUptime || 99.95}%
 Measured Uptime: ${calc?.measuredUptime || entitlement.measuredUptime}%
 Breach Magnitude: ${calc?.breachMagnitude || 0.1}%
-Payout Method: "${entitlement.payoutMethod}"
+Payout Method: "${effectivePayoutChannel}"
+Contract Non-Cash Restriction: ${contract?.isCashRefundAllowed === false ? 'ACTIVE (Section 10: Service credits are not redeemable for cash and must be applied to subsequent invoices. PayPal cash refund strictly prohibited.)' : 'NONE (Electronic / PayPal refund permitted if authorized)'}
 Evidence Completeness Score: ${evidenceAudit.completenessScore}/100
 Contradictory Evidence Count: ${evidenceAudit.contradictoryEvidence.length}
 Missing Evidence Items: ${JSON.stringify(evidenceAudit.missingEvidence.map(m => m.name))}
@@ -192,17 +197,22 @@ Return a valid JSON object matching this schema:
           : 'Approve compensation package for disbursement.'
       ),
       payoutRouting: {
-        recommendedChannel: entitlement.payoutMethod,
+        recommendedChannel: effectivePayoutChannel,
         requiresDualApproval: isHighValue,
         dualApprovalReason: isHighValue ? 'Remedy amount exceeds $2,500.00 dual-approval threshold.' : undefined
       },
       pathEvidence,
-      facts: rawData.facts?.length > 0 ? rawData.facts : baseFacts,
+      facts: rawData.facts?.length > 0 ? rawData.facts : [
+        ...baseFacts,
+        ...(isCashProhibited ? ['Remedy Routing: Subsequent invoice billing credit strictly required (Section 10 non-cash clause).'] : [])
+      ],
       calculations: baseCalculations,
       recommendations: rawData.recommendations?.length > 0 ? rawData.recommendations : [
-        entitlement.payoutMethod === 'PayPal Refund'
+        effectivePayoutChannel === 'PayPal Refund'
           ? 'Authorized for PayPal Sandbox capture refund (POST /v2/payments/captures/{id}/refund) once financial approval is granted.'
-          : 'Direct billing credit to be applied on the upcoming billing cycle.',
+          : (contract?.isCashRefundAllowed === false
+              ? 'Direct billing credit to be applied automatically on subsequent invoice per Section 10 ("Service Credits are not redeemable for cash"). PayPal cash refund prohibited.'
+              : 'Direct billing credit to be applied on the upcoming billing cycle.'),
         isHighValue ? 'Executive legal countersignature required following controller sign-off.' : 'Single-stage controller sign-off sufficient.'
       ],
       mathematicalAuthorityNotice: MATHEMATICAL_AUTHORITY_NOTICE
@@ -210,7 +220,7 @@ Return a valid JSON object matching this schema:
   }
 
   // Deterministic Fallback
-  return runDeterministicRecoveryAgent(entitlement, evidenceAudit, isHighValue, baseFacts, baseCalculations, pathEvidence);
+  return runDeterministicRecoveryAgent(entitlement, evidenceAudit, isHighValue, baseFacts, baseCalculations, pathEvidence, contract);
 }
 
 /**
@@ -222,10 +232,13 @@ export function runDeterministicRecoveryAgent(
   isHighValue: boolean,
   baseFacts: string[],
   baseCalculations: string[],
-  pathEvidence: Array<{ source: string; location: string; item: string }>
+  pathEvidence: Array<{ source: string; location: string; item: string }>,
+  contract?: Contract
 ): RecoveryRecommendationResult {
   const calc = entitlement.calculation;
   const hasContradictions = evidenceAudit.contradictoryEvidence.length > 0;
+  const isCashProhibited = contract?.isCashRefundAllowed === false || entitlement.payoutMethod === 'Service Credit';
+  const effectivePayoutChannel: 'PayPal Refund' | 'Service Credit' = isCashProhibited ? 'Service Credit' : entitlement.payoutMethod;
 
   const verdict: 'RECOMMEND_FULL_PAYOUT' | 'REQUEST_ADDITIONAL_EVIDENCE' =
     hasContradictions || evidenceAudit.completenessScore < 70
@@ -261,18 +274,23 @@ export function runDeterministicRecoveryAgent(
       ? 'Submit for Stage 1 Financial Controller review (dual-approval required).'
       : 'Submit for primary approval review.',
     payoutRouting: {
-      recommendedChannel: entitlement.payoutMethod,
+      recommendedChannel: effectivePayoutChannel,
       requiresDualApproval: isHighValue,
       dualApprovalReason: isHighValue ? 'Remedy amount exceeds $2,500.00 dual-approval threshold.' : undefined
     },
     pathEvidence,
-    facts: baseFacts,
+    facts: [
+      ...baseFacts,
+      ...(isCashProhibited ? ['Remedy Routing: Subsequent invoice credit only (Section 10 prohibits cash redemption).'] : [])
+    ],
     calculations: baseCalculations,
     recommendations: [
       `Contract clause ${calc?.applicableClauseTitle || 'SLA'} explicitly mandates this remedy tier.`,
-      entitlement.payoutMethod === 'PayPal Refund'
+      effectivePayoutChannel === 'PayPal Refund'
         ? 'Authorized for PayPal Sandbox capture refund (POST /v2/payments/captures/{capture_id}/refund) once financial approval is granted.'
-        : 'Direct billing credit to be applied automatically on the upcoming billing cycle.'
+        : (contract?.isCashRefundAllowed === false
+            ? 'Direct billing credit to be applied automatically on subsequent invoice per Section 10 ("Service Credits are not redeemable for cash"). PayPal cash refund prohibited.'
+            : 'Direct billing credit to be applied automatically on the upcoming billing cycle.')
     ],
     mathematicalAuthorityNotice: MATHEMATICAL_AUTHORITY_NOTICE
   };

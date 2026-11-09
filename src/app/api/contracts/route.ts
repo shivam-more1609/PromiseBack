@@ -1,8 +1,13 @@
+import '@/lib/serverlessPolyfills';
 import { NextResponse } from 'next/server';
 import { store } from '@/lib/store';
 import { validateMutationAuth } from '@/lib/auth';
 import { extractContractFromPdfBuffer } from '@/lib/contractExtractor';
 import { Contract } from '@/types';
+
+// Explicitly configure Node.js serverless runtime for Vercel / AWS Lambda
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
@@ -51,7 +56,32 @@ export async function POST(request: Request) {
       const customerNameInput = (formData.get('customerName') as string) || undefined;
 
       if (!file) {
-        return NextResponse.json({ success: false, error: 'NO_FILE_PROVIDED: Please select a valid PDF file.' }, { status: 400 });
+        return NextResponse.json(
+          { success: false, error: 'NO_FILE_PROVIDED: Please select a valid PDF file.' },
+          { status: 400 }
+        );
+      }
+
+      if (file.size === 0) {
+        return NextResponse.json(
+          { success: false, error: 'FILE_EMPTY: The uploaded PDF file is empty (0 bytes).' },
+          { status: 400 }
+        );
+      }
+
+      if (file.size > 15 * 1024 * 1024) {
+        return NextResponse.json(
+          { success: false, error: 'FILE_TOO_LARGE: The uploaded file exceeds the 15MB limit.' },
+          { status: 400 }
+        );
+      }
+
+      const lowerName = (file.name || '').toLowerCase();
+      if (!lowerName.endsWith('.pdf') && file.type !== 'application/pdf') {
+        return NextResponse.json(
+          { success: false, error: 'INVALID_FILE_TYPE: Only PDF documents (.pdf) are supported for contract ingestion.' },
+          { status: 400 }
+        );
       }
 
       fileName = file.name;
@@ -63,19 +93,32 @@ export async function POST(request: Request) {
       const extracted = await extractContractFromPdfBuffer(buffer, customerNameInput);
 
       contractData = {
+        contractNumber: extracted.contractNumber || undefined,
         customerName: customerNameInput || extracted.customerName,
         slaName: extracted.slaName,
         uptimeTarget: extracted.uptimeTarget,
         measurementPeriod: extracted.measurementPeriod,
         claimDeadlineDays: extracted.claimDeadlineDays,
         maxCompensationPercent: extracted.maxCompensationPercent,
+        maxRemedyCapText: extracted.maxRemedyCapText,
+        explicitPercentageCap: extracted.explicitPercentageCap ?? extracted.maxCompensationPercent ?? null,
+        contractualMonetaryCeiling: extracted.contractualMonetaryCeiling ?? null,
+        contractualMonetaryCeilingText: extracted.contractualMonetaryCeilingText,
+        maxServiceCreditTier: extracted.maxServiceCreditTier,
+        isCashRefundAllowed: extracted.isCashRefundAllowed,
+        disbursementMethodText: extracted.disbursementMethodText,
+        nonCashRestrictionClause: extracted.nonCashRestrictionClause,
+        effectiveStartDate: extracted.effectiveStartDate || undefined,
+        effectiveEndDate: extracted.effectiveEndDate || undefined,
         compensationTiers: extracted.compensationTiers,
         maintenanceExclusions: extracted.maintenanceExclusions,
         extractedConfidence: extracted.extractedConfidence,
         clauses: extracted.clauses,
         fileName,
         fileSize,
-        rawTextPreview: extracted.rawTextPreview
+        rawTextPreview: extracted.rawTextPreview,
+        downtimeAllowanceMinutes: extracted.downtimeAllowanceMinutes,
+        monthlyServiceFee: extracted.monthlyServiceFee
       };
     } else {
       // JSON body fallback
@@ -88,12 +131,16 @@ export async function POST(request: Request) {
 
       const target = Number(uptimeTarget) || 99.95;
       contractData = {
+        contractNumber: body.contractNumber || undefined,
         customerName,
         slaName: slaName || `${customerName} SLA`,
         uptimeTarget: target,
         measurementPeriod: 'Monthly',
         claimDeadlineDays: 30,
-        maxCompensationPercent: 50,
+        maxCompensationPercent: null,
+        maxRemedyCapText: 'Not specified in source document',
+        effectiveStartDate: body.effectiveStartDate || 'Not specified in source document',
+        effectiveEndDate: body.effectiveEndDate || 'Not specified in source document',
         compensationTiers: [
           { uptimeThreshold: target, creditPercentage: 0, label: `≥ ${target}% Target Satisfied` },
           { uptimeThreshold: target, creditPercentage: 10, label: `${(target - 0.45).toFixed(2)}% - ${(target - 0.01).toFixed(2)}% (10% Credit)` },
@@ -113,12 +160,13 @@ export async function POST(request: Request) {
           }
         ],
         fileName: body.fileName || fileName,
-        fileSize: body.fileSize || fileSize
+        fileSize: body.fileSize || fileSize,
+        rawTextPreview: body.rawTextPreview || ''
       };
     }
 
     const id = `contract-${Date.now()}`;
-    const contractNumber = `SLA-2026-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    const contractNumber = contractData.contractNumber || `SLA-2026-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
     const newContract: Contract = {
       id,
@@ -131,21 +179,45 @@ export async function POST(request: Request) {
       claimDeadlineDays: contractData.claimDeadlineDays || 30,
       compensationTiers: contractData.compensationTiers || [],
       maintenanceExclusions: contractData.maintenanceExclusions || [],
-      maxCompensationPercent: contractData.maxCompensationPercent || 50,
-      effectiveStartDate: new Date().toISOString().split('T')[0],
-      effectiveEndDate: new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0],
+      maxCompensationPercent: typeof contractData.maxCompensationPercent === 'number' ? contractData.maxCompensationPercent : null,
+      maxRemedyCapText: contractData.maxRemedyCapText || (typeof contractData.maxCompensationPercent === 'number' ? `${contractData.maxCompensationPercent}%` : 'Not specified in source document'),
+      explicitPercentageCap: typeof contractData.explicitPercentageCap === 'number' ? contractData.explicitPercentageCap : (typeof contractData.maxCompensationPercent === 'number' ? contractData.maxCompensationPercent : null),
+      contractualMonetaryCeiling: typeof contractData.contractualMonetaryCeiling === 'number' ? contractData.contractualMonetaryCeiling : (contractData.monthlyServiceFee || null),
+      contractualMonetaryCeilingText: contractData.contractualMonetaryCeilingText,
+      maxServiceCreditTier: contractData.maxServiceCreditTier,
+      isCashRefundAllowed: contractData.isCashRefundAllowed,
+      disbursementMethodText: contractData.disbursementMethodText,
+      nonCashRestrictionClause: contractData.nonCashRestrictionClause,
+      effectiveStartDate: contractData.effectiveStartDate || 'Not specified in source document',
+      effectiveEndDate: contractData.effectiveEndDate || 'Not specified in source document',
       status: 'requires_review', // Strictly requires human compliance verification
       extractedConfidence: contractData.extractedConfidence || 0.92,
       uploadedAt: new Date().toISOString(),
       fileName: contractData.fileName || fileName,
       fileSize: contractData.fileSize || fileSize,
       clauses: contractData.clauses || [],
-      rawTextPreview: contractData.rawTextPreview
+      rawTextPreview: contractData.rawTextPreview,
+      downtimeAllowanceMinutes: contractData.downtimeAllowanceMinutes,
+      monthlyServiceFee: contractData.monthlyServiceFee,
+      isDemo: false
     };
 
     const created = store.addContract(newContract);
     return NextResponse.json({ success: true, contract: created });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    const errorMsg = error?.message || 'Internal contract processing error.';
+    const isClientError =
+      errorMsg.includes('NO_FILE') ||
+      errorMsg.includes('FILE_EMPTY') ||
+      errorMsg.includes('FILE_TOO_LARGE') ||
+      errorMsg.includes('INVALID_FILE_TYPE') ||
+      errorMsg.includes('PDF_PARSING_FAILED') ||
+      errorMsg.includes('PDF_EMPTY_OR_UNREADABLE') ||
+      errorMsg.includes('required');
+
+    return NextResponse.json(
+      { success: false, error: errorMsg },
+      { status: isClientError ? 400 : 500 }
+    );
   }
 }

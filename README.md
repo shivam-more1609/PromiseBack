@@ -617,32 +617,36 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 PromiseBack includes an automated verification harness covering SLA mathematics, financial guardrails, contract intelligence, PayPal capture refunds, dual-officer governance, webhook reconciliation, and cognitive AI agents.
 
-Run all 13 automated test suites:
+Run all 17 automated test suites:
 ```bash
 npm test
 ```
 
-### Verified Test Suite Results (13/13 Passing)
+### Verified Test Suite Results (17/17 Passing)
 
 ```
-=== RUNNING ALL 13 TEST SUITES ===
+=== RUNNING ALL 17 TEST SUITES ===
 
-Executing: tests/sla-calculation.test.ts ......... ✅ PASSED
-Executing: tests/financial-security.test.ts ...... ✅ PASSED
-Executing: tests/contract-extraction.test.ts ..... ✅ PASSED
-Executing: tests/paypal-integration.test.ts ...... ✅ PASSED
-Executing: tests/e2e-workflow.test.ts ............ ✅ PASSED
-Executing: tests/second-review.test.ts ........... ✅ PASSED
-Executing: tests/third-review.test.ts ............ ✅ PASSED
-Executing: tests/sponsor-integrations.test.ts .... ✅ PASSED
-Executing: tests/webhook-reconciliation.test.ts .. ✅ PASSED
-Executing: tests/redirect-persistence.test.ts .... ✅ PASSED
-Executing: tests/ledger-reconciliation.test.ts ... ✅ PASSED
-Executing: tests/dual-approval-governance.test.ts  ✅ PASSED
-Executing: tests/ai-intelligence-layer.test.ts ... ✅ PASSED
+Executing: tests/sla-calculation.test.ts .................. ✅ PASSED
+Executing: tests/financial-security.test.ts ............... ✅ PASSED
+Executing: tests/contract-extraction.test.ts .............. ✅ PASSED
+Executing: tests/serverless-pdf-contract.test.ts .......... ✅ PASSED
+Executing: tests/paypal-integration.test.ts ............... ✅ PASSED
+Executing: tests/e2e-workflow.test.ts ..................... ✅ PASSED
+Executing: tests/second-review.test.ts .................... ✅ PASSED
+Executing: tests/third-review.test.ts ..................... ✅ PASSED
+Executing: tests/sponsor-integrations.test.ts ............. ✅ PASSED
+Executing: tests/webhook-reconciliation.test.ts ........... ✅ PASSED
+Executing: tests/redirect-persistence.test.ts ............. ✅ PASSED
+Executing: tests/ledger-reconciliation.test.ts ............ ✅ PASSED
+Executing: tests/dual-approval-governance.test.ts ......... ✅ PASSED
+Executing: tests/ai-intelligence-layer.test.ts ............ ✅ PASSED
+Executing: tests/forensic-contract-accuracy.test.ts ....... ✅ PASSED
+Executing: tests/clause-verification-governance.test.ts ... ✅ PASSED
+Executing: tests/financial-recovery-paypal-safety.test.ts . ✅ PASSED
 
 ========================================
-TEST SUITE RESULTS: 13/13 PASSED
+TEST SUITE RESULTS: 17/17 PASSED
 ========================================
 ```
 
@@ -750,10 +754,12 @@ Hackathon judges can evaluate the complete end-to-end workflow following this gu
 
 To maintain technical credibility, the current operational boundaries of the hackathon prototype are explicitly stated:
 
+- **Mocked PayPal Testing vs. Real Transactions**: The automated test suite (`npm test`) executes exclusively against in-memory mock controllers and test doubles; zero real money is ever disbursed during tests. Real PayPal transactions require live sandbox credentials configured in `.env.local` (`PAYPAL_SANDBOX_CLIENT_ID` and `PAYPAL_SANDBOX_CLIENT_SECRET`).
+- **Vercel Serverless Persistence Limitation**: While local development and standalone Node.js runtimes persist mutations through atomic file writes to `data/store.json`, Vercel serverless environments utilize ephemeral, read-only container filesystems. State changes on a serverless deployment persist within the active container's lifecycle but do not guarantee permanent multi-instance persistence across cold starts or redeployments without an external distributed datastore (e.g., PostgreSQL, Supabase, Redis, or Vercel KV).
 - **Currency Scope**: The current calculation engine is configured exclusively for US Dollars (`USD`). Multi-currency conversion is not yet supported.
 - **Seeded Monitoring Telemetry**: Outage metrics, synthetic canary probe data, and error rates are currently supplied via seeded JSON records rather than direct live polling of external monitoring vendors.
 - **Refund Eligibility Window**: PayPal REST API v2 capture refunds can only be executed against payment captures created within PayPal's standard 180-day refund window.
-- **In-Memory Store Persistence**: The application uses a thread-safe, file-backed JSON store ([`store.ts`](src/lib/store.ts)) with atomic file writes, rather than an external distributed SQL database.
+- **No Production Claims**: This codebase represents an advanced hackathon prototype; production deployment requires migration from local JSON file storage to a distributed database and formal enterprise identity federation.
 
 ---
 

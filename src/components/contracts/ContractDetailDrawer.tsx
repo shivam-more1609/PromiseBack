@@ -13,7 +13,7 @@ interface ContractDetailDrawerProps {
   contract: Contract | null;
   isOpen: boolean;
   onClose: () => void;
-  onContractUpdated: () => void;
+  onContractUpdated: (updatedContract?: Contract) => void;
 }
 
 export default function ContractDetailDrawer({
@@ -73,16 +73,28 @@ export default function ContractDetailDrawer({
             <span className="text-base font-bold text-neutral-primary font-mono">{contract.uptimeTarget}%</span>
           </div>
           <div className="bg-white p-3 rounded-lg border border-neutral-border">
-            <span className="text-[11px] text-neutral-secondary block">Measurement</span>
-            <span className="text-base font-bold text-neutral-primary">{contract.measurementPeriod}</span>
+            <span className="text-[11px] text-neutral-secondary block">Explicit % Cap</span>
+            <span className="text-base font-bold text-primary font-mono">
+              {contract.explicitPercentageCap !== null && contract.explicitPercentageCap !== undefined
+                ? `${contract.explicitPercentageCap}%`
+                : (typeof contract.maxCompensationPercent === 'number'
+                    ? `${contract.maxCompensationPercent}%`
+                    : 'Not Specified')}
+            </span>
           </div>
           <div className="bg-white p-3 rounded-lg border border-neutral-border">
-            <span className="text-[11px] text-neutral-secondary block">Claim Deadline</span>
-            <span className="text-base font-bold text-neutral-primary font-mono">{contract.claimDeadlineDays} Days</span>
+            <span className="text-[11px] text-neutral-secondary block">Monetary Ceiling</span>
+            <span className="text-base font-bold text-neutral-primary font-mono">
+              {contract.contractualMonetaryCeiling
+                ? `100% ($${contract.contractualMonetaryCeiling.toLocaleString()})`
+                : (contract.monthlyServiceFee ? `100% ($${contract.monthlyServiceFee.toLocaleString()})` : 'Not Specified')}
+            </span>
           </div>
           <div className="bg-white p-3 rounded-lg border border-neutral-border">
-            <span className="text-[11px] text-neutral-secondary block">Max Remedy Cap</span>
-            <span className="text-base font-bold text-primary font-mono">{contract.maxCompensationPercent}%</span>
+            <span className="text-[11px] text-neutral-secondary block">Max Credit Tier</span>
+            <span className="text-base font-bold text-primary font-mono">
+              {contract.maxServiceCreditTier ? `${contract.maxServiceCreditTier}%` : '20%'}
+            </span>
           </div>
         </div>
 
@@ -97,19 +109,62 @@ export default function ContractDetailDrawer({
             >
               {contract.status === 'active' ? 'Active Covenant' : 'Requires Compliance Review'}
             </Badge>
+            {contract.isDemo ? (
+              <Badge variant="neutral" size="sm">
+                Demo Seed
+              </Badge>
+            ) : (
+              <Badge variant="indigo" size="sm">
+                Uploaded PDF
+              </Badge>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-1 border-t border-neutral-border">
             <div>
               <span className="text-neutral-secondary">Effective Period:</span>
               <p className="font-medium text-neutral-primary mt-0.5">
-                {contract.effectiveStartDate} → {contract.effectiveEndDate}
+                {contract.effectiveStartDate && contract.effectiveEndDate
+                  ? `${contract.effectiveStartDate} → ${contract.effectiveEndDate}`
+                  : (contract.effectiveStartDate || 'Not specified in source document')}
               </p>
             </div>
             <div>
               <span className="text-neutral-secondary">AI Extraction Confidence:</span>
               <p className="font-mono font-medium text-primary mt-0.5">
-                {(contract.extractedConfidence * 100).toFixed(1)}% High Accuracy
+                {(contract.extractedConfidence * 100).toFixed(0)}%
+              </p>
+            </div>
+            {contract.downtimeAllowanceMinutes && (
+              <div>
+                <span className="text-neutral-secondary">Downtime Allowance:</span>
+                <p className="font-mono font-medium text-neutral-primary mt-0.5">
+                  {contract.downtimeAllowanceMinutes} minutes / month
+                </p>
+              </div>
+            )}
+            {contract.monthlyServiceFee && (
+              <div>
+                <span className="text-neutral-secondary">Monthly Service Fee:</span>
+                <p className="font-mono font-medium text-neutral-primary mt-0.5">
+                  USD {contract.monthlyServiceFee.toLocaleString()}
+                </p>
+              </div>
+            )}
+            <div className="sm:col-span-2">
+              <span className="text-neutral-secondary">Contractual Monetary Ceiling:</span>
+              <p className="font-mono font-medium text-neutral-primary mt-0.5 text-[11px] leading-relaxed">
+                {contract.contractualMonetaryCeilingText || (contract.monthlyServiceFee
+                  ? `100% of relevant month fees (USD ${contract.monthlyServiceFee.toLocaleString()})`
+                  : 'Not specified in source document')}
+              </p>
+            </div>
+            <div className="sm:col-span-2">
+              <span className="text-neutral-secondary">Remedy Disbursement Policy:</span>
+              <p className="font-medium text-neutral-primary mt-0.5">
+                {contract.isCashRefundAllowed === false
+                  ? 'Subsequent Invoice Credit (Credits are not redeemable for cash per Section 10; PayPal cash refunds prohibited)'
+                  : (contract.disbursementMethodText || 'Direct Invoicing Credit or PayPal Reversal')}
               </p>
             </div>
           </div>

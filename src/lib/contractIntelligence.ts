@@ -248,7 +248,9 @@ JSON Response Schema:
     verdict,
     facts: parsed.facts || [
       `Contracted availability baseline: ${contract.uptimeTarget}% measured on a ${contract.measurementPeriod.toLowerCase()} schedule.`,
-      `Maximum contractual compensation ceiling is capped at ${contract.maxCompensationPercent}%.`
+      contract.maxCompensationPercent != null
+        ? `Maximum contractual compensation ceiling is capped at ${contract.maxCompensationPercent}%.`
+        : 'Maximum contractual compensation ceiling: Not specified in source document.'
     ],
     calculations: parsed.calculations || [
       `Claim submission deadline window: ${contract.claimDeadlineDays} calendar days following measurement period close.`,
@@ -301,8 +303,10 @@ function runDeterministicNlpAnalysis(
     clauseId: 'clause-det-2',
     section: 'Section 4.3',
     title: 'Service Credit Remedy Schedule',
-    interpretedMeaning: `Defines tier escalation starting below ${contract.uptimeTarget}% with maximum contractual credit capped at ${contract.maxCompensationPercent}%.`,
-    exactSourceQuote: remedyMatch ? remedyMatch[0].trim() : `Remedy schedule escalates up to ${contract.maxCompensationPercent}% maximum recurring credit.`,
+    interpretedMeaning: contract.maxCompensationPercent != null
+      ? `Defines tier escalation starting below ${contract.uptimeTarget}% with maximum contractual credit capped at ${contract.maxCompensationPercent}%.`
+      : `Defines tier escalation starting below ${contract.uptimeTarget}% based on measured monthly downtime.`,
+    exactSourceQuote: remedyMatch ? remedyMatch[0].trim() : (contract.maxCompensationPercent != null ? `Remedy schedule escalates up to ${contract.maxCompensationPercent}% maximum recurring credit.` : `Remedy schedule escalates based on measured downtime.`),
     confidence: remedyMatch ? (remedyDiscretionary ? 0.70 : 0.95) : 0.80,
     ambiguitiesDetected: remedyDiscretionary ? ['Remedy disbursement includes discretionary review language.'] : [],
     requiresHumanVerification: remedyDiscretionary || !remedyMatch
@@ -362,7 +366,9 @@ function runDeterministicNlpAnalysis(
     facts: [
       `Contracted availability commitment: ${contract.uptimeTarget}% evaluated on a ${contract.measurementPeriod.toLowerCase()} schedule.`,
       `Total analyzed clauses: ${validatedClauses.length} (${reviewNeeded.length} flagged for human compliance verification).`,
-      `Maximum compensation ceiling is capped at ${contract.maxCompensationPercent}% of monthly recurring service fees.`
+      contract.maxCompensationPercent != null
+        ? `Maximum compensation ceiling is capped at ${contract.maxCompensationPercent}% of monthly recurring service fees.`
+        : 'Maximum compensation ceiling: Not specified in source document.'
     ],
     calculations: [
       `Contractual claim window: ${contract.claimDeadlineDays} calendar days post measurement period close.`,

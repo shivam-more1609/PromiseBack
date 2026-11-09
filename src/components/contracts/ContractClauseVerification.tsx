@@ -9,7 +9,7 @@ import { CheckCircle2, AlertTriangle, Sparkles, UserCheck, Edit3 } from 'lucide-
 interface ContractClauseVerificationProps {
   contractId: string;
   clauses: SLAClause[];
-  onClauseUpdated: () => void;
+  onClauseUpdated: (updatedContract?: any) => void;
 }
 
 export default function ContractClauseVerification({
@@ -18,28 +18,34 @@ export default function ContractClauseVerification({
   onClauseUpdated
 }: ContractClauseVerificationProps) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activeNotes, setActiveNotes] = useState<{ [clauseId: string]: string }>({});
 
   const handleVerifyClause = async (clauseId: string, status: VerificationStatus) => {
     setUpdatingId(clauseId);
+    setErrorMsg(null);
     try {
       const response = await fetch(`/api/contracts/${contractId}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clauseId,
           status,
-          verifiedBy: 'Elena Rostova (Compliance Lead)',
           notes: activeNotes[clauseId] || undefined
         })
       });
 
       const data = await response.json();
       if (data.success) {
-        onClauseUpdated();
+        setErrorMsg(null);
+        onClauseUpdated(data.contract);
+      } else {
+        setErrorMsg(data.error || 'Failed to update clause verification status.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to verify clause:', err);
+      setErrorMsg(err.message || 'Network error updating clause status.');
     } finally {
       setUpdatingId(null);
     }
@@ -65,8 +71,17 @@ export default function ContractClauseVerification({
             Requires Legal Review
           </Badge>
         );
+      case 'unverified':
+        return (
+          <Badge variant="danger" size="sm" dot>
+            UNVERIFIED (Unsupported)
+          </Badge>
+        );
     }
   };
+
+  const verifiedCount = clauses.filter(c => c.status === 'human_verified' || (c.status as string) === 'verified').length;
+  const verifiedPercentage = clauses.length > 0 ? Math.round((verifiedCount / clauses.length) * 100) : 0;
 
   return (
     <div className="space-y-4">
@@ -79,10 +94,24 @@ export default function ContractClauseVerification({
             Financial & legal accountability: Every extracted commitment must be countersigned.
           </p>
         </div>
-        <span className="text-xs text-neutral-secondary font-mono">
-          {clauses.filter(c => c.status === 'human_verified').length} / {clauses.length} Verified
-        </span>
+        <div className="flex items-center gap-2">
+          {clauses.some(c => c.status === 'unverified') && (
+            <Badge variant="danger" size="sm">
+              Unsupported Clause Detected
+            </Badge>
+          )}
+          <span className="text-xs text-neutral-secondary font-mono">
+            {verifiedCount} / {clauses.length} Human Verified ({verifiedPercentage}%)
+          </span>
+        </div>
       </div>
+
+      {errorMsg && (
+        <div className="p-3 bg-[#FFF5F5] border border-[#FEB2B2] rounded-lg text-xs text-danger flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-danger" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
 
       <div className="space-y-3">
         {clauses.map((clause) => {
@@ -94,6 +123,8 @@ export default function ContractClauseVerification({
               className={`p-4 rounded-xl border transition-all ${
                 clause.status === 'human_verified'
                   ? 'bg-white border-[#C3EAD9]/80 shadow-xs'
+                  : clause.status === 'unverified'
+                  ? 'bg-[#FFF5F5] border-[#FEB2B2]'
                   : clause.status === 'requires_review'
                   ? 'bg-[#FFFBF5] border-[#FFD591]'
                   : 'bg-[#F9FAFC] border-neutral-border'
@@ -116,10 +147,44 @@ export default function ContractClauseVerification({
                 </div>
               </div>
 
-              {/* Clause Legal Text */}
-              <div className="mt-2.5 p-3 bg-white border border-[#E2E8F0] rounded-lg font-serif text-xs text-[#1E293B] leading-relaxed">
-                “{clause.content}”
+              {/* Clause Source Quotation & AI Interpretation (Visibly Distinguished) */}
+              <div className="mt-2.5 space-y-2">
+                {clause.exactSourceQuote && (
+                  <div className="p-3 bg-[#F8FAFC] border-l-4 border-primary border-y border-r border-[#E2E8F0] rounded-r-lg font-serif text-xs text-[#0F172A] leading-relaxed shadow-xs">
+                    <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                      <span className="text-[10px] font-sans uppercase font-bold text-neutral-secondary tracking-wider">
+                        Verbatim Source Quotation (PDF Substring):
+                      </span>
+                      {clause.isFabricatedOrUnsupported ? (
+                        <span className="text-[10px] font-sans font-bold text-danger bg-danger-light px-2 py-0.5 rounded border border-danger/30">
+                          Quote Authentication: FAILED (Not Found in PDF)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-sans font-semibold text-[#065F46] bg-[#D1FAE5] px-2 py-0.5 rounded border border-[#A7F3D0]">
+                          Quote Authentication: Verified Substring
+                        </span>
+                      )}
+                    </div>
+                    “{clause.exactSourceQuote}”
+                  </div>
+                )}
+                <div className="p-3 bg-[#FAF5FF] border border-[#E9D8FD] rounded-lg text-xs text-[#3B0764] leading-relaxed">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#7C3AED]" />
+                    <span className="text-[10px] font-sans uppercase font-bold text-[#6B21A8] tracking-wider">
+                      AI Legal Interpretation (Derived from Document):
+                    </span>
+                  </div>
+                  {clause.content}
+                </div>
               </div>
+
+              {/* Notes / Fabricated Alert */}
+              {clause.notes && (
+                <div className="mt-2 p-2 bg-warning-light text-warning-dark text-[11px] rounded border border-warning/20">
+                  {clause.notes}
+                </div>
+              )}
 
               {/* Verification Info / Action */}
               <div className="mt-3 pt-2.5 border-t border-neutral-border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px]">

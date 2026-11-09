@@ -200,7 +200,10 @@ class PromiseBackStore {
       if (targetPath) {
         const raw = fs.readFileSync(targetPath, 'utf-8');
         const data = JSON.parse(raw);
-        this.contracts = data.contracts || [];
+        this.contracts = (data.contracts || []).map((c: Contract) => ({
+          ...c,
+          isDemo: c.isDemo !== undefined ? c.isDemo : /^contract-0[1-4]$/.test(c.id)
+        }));
         this.incidents = data.incidents || [];
         this.customers = data.customers || [];
         this.entitlements = data.entitlements || [];
@@ -822,6 +825,9 @@ class PromiseBackStore {
   }
 
   public addContract(contract: Contract, actorName = 'Compliance Officer'): Contract {
+    if (contract.isDemo === undefined) {
+      contract.isDemo = false;
+    }
     this.contracts.unshift(contract);
     this.recordAuditEventSync({
       category: 'CONTRACT',
@@ -847,9 +853,13 @@ class PromiseBackStore {
     clause.verifiedAt = new Date().toISOString();
     if (notes) clause.notes = notes;
 
-    const allVerified = contract.clauses.every(cl => cl.status === 'human_verified');
-    if (allVerified) {
-      contract.status = 'active';
+    if (status === 'requires_review' || status === 'unverified') {
+      contract.status = 'requires_review';
+    } else {
+      const allVerified = contract.clauses.every(cl => cl.status === 'human_verified' || (cl.status as string) === 'verified');
+      if (allVerified) {
+        contract.status = 'active';
+      }
     }
 
     this.recordAuditEventSync({

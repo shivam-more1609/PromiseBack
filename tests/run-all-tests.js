@@ -4,6 +4,7 @@ const testSuites = [
   'tests/sla-calculation.test.ts',
   'tests/financial-security.test.ts',
   'tests/contract-extraction.test.ts',
+  'tests/serverless-pdf-contract.test.ts',
   'tests/paypal-integration.test.ts',
   'tests/e2e-workflow.test.ts',
   'tests/second-review.test.ts',
@@ -13,7 +14,10 @@ const testSuites = [
   'tests/redirect-persistence.test.ts',
   'tests/ledger-reconciliation.test.ts',
   'tests/dual-approval-governance.test.ts',
-  'tests/ai-intelligence-layer.test.ts'
+  'tests/ai-intelligence-layer.test.ts',
+  'tests/forensic-contract-accuracy.test.ts',
+  'tests/clause-verification-governance.test.ts',
+  'tests/financial-recovery-paypal-safety.test.ts'
 ];
 
 console.log(`=== RUNNING ALL ${testSuites.length} TEST SUITES ===\n`);
